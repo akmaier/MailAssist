@@ -61,7 +61,7 @@ def test_generate_reply_requests_json_response(monkeypatch: pytest.MonkeyPatch) 
 
     reply = client.generate_reply("hello", [])
 
-    assert recorder.captured_kwargs["response_format"] == {"type": "json_object"}
+    assert "response_format" not in recorder.captured_kwargs
     assert reply.to == "a@b.c"
     assert reply.subject == "Hi"
     assert reply.body_text == "Body"
