@@ -38,6 +38,7 @@ class LLMClient:
     def generate_reply(self, body_text: str, attachments: Iterable[ProcessedAttachment]) -> LLMReply:
         prompt = self._build_prompt(body_text, attachments)
         self.logger.debug("Submitting prompt to GPT-5 (model=%s)", self.settings.model)
+        self.logger.debug("LLM message payload: %s", prompt)
         request_kwargs = {
             "model": self.settings.model,
             "input": [
@@ -61,14 +62,24 @@ class LLMClient:
                 "Omitting sampling controls for model '%s'", self.settings.model
             )
 
+        self.logger.debug("LLM request body: %s", request_kwargs["input"])
         response = self.client.responses.create(**request_kwargs)
         payload = response.output_text
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:  # pragma: no cover - depends on API behaviour
+            self.logger.error(
+                "LLM returned payload that could not be parsed as JSON: %s",
+                payload,
+            )
             raise RuntimeError(f"LLM returned invalid JSON: {payload}") from exc
         for key in ("to", "subject", "body_text"):
             if key not in data:
+                self.logger.error(
+                    "LLM response missing required field '%s'. Full payload: %s",
+                    key,
+                    data,
+                )
                 raise RuntimeError(f"LLM response missing '{key}' field: {data}")
         return LLMReply(to=data["to"], subject=data["subject"], body_text=data["body_text"])
 

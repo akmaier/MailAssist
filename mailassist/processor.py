@@ -16,6 +16,22 @@ from .state import ProcessorState
 LOGGER = logging.getLogger(__name__)
 
 
+def extract_plain_text(message: EmailMessage) -> str:
+    if message.is_multipart():
+        for part in message.walk():
+            if part.get_content_type() == "text/plain":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    try:
+                        return payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+                    except LookupError:
+                        return payload.decode("utf-8", errors="replace")
+    text = message.get_body(preferencelist=("plain",))
+    if text:
+        return text.get_content()
+    return message.get_content()
+
+
 class MailProcessor:
     def __init__(
         self,
@@ -75,19 +91,7 @@ class MailProcessor:
             self.logger.info("Deletion disabled by configuration; retaining message UID %s", uid)
 
     def _extract_plain_text(self, message: EmailMessage) -> str:
-        if message.is_multipart():
-            for part in message.walk():
-                if part.get_content_type() == "text/plain":
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        try:
-                            return payload.decode(part.get_content_charset() or "utf-8", errors="replace")
-                        except LookupError:
-                            return payload.decode("utf-8", errors="replace")
-        text = message.get_body(preferencelist=("plain",))
-        if text:
-            return text.get_content()
-        return message.get_content()
+        return extract_plain_text(message)
 
 
-__all__ = ["MailProcessor"]
+__all__ = ["MailProcessor", "extract_plain_text"]
