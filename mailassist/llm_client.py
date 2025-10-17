@@ -44,7 +44,12 @@ class LLMClient:
             "input": [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant generating structured email replies. Respond ONLY with JSON matching the schema {to, subject, body_text}.",
+                    "content": (
+                        "You are a helpful assistant generating structured email replies. "
+                        "Parse the mail and create an appropriate reply to the mail. "
+                        "We want to parse your reply afterwards with a JSON parser to create a reply mail. "
+                        "Respond ONLY with JSON matching the schema {to, subject, body_text} as an appropriate reply to the mail provided by the user."
+                    ),
                 },
                 {
                     "role": "user",

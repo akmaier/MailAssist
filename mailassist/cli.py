@@ -15,7 +15,11 @@ from .processor import MailProcessor, extract_plain_text
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MailAssist LLM mail processor")
-    parser.add_argument("command", choices=["run", "test"], help="Command to execute")
+    parser.add_argument(
+        "command",
+        choices=["run", "safe", "test"],
+        help="Command to execute",
+    )
     parser.add_argument("--config", dest="config", help="Path to configuration file")
     parser.add_argument("--log-level", dest="log_level", default="INFO", help="Python logging level (default: INFO)")
     return parser
@@ -25,9 +29,9 @@ def configure_logging(level: str) -> None:
     logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(message)s")
 
 
-def run_processor(config_path: Optional[str]) -> None:
+def run_processor(config_path: Optional[str], *, safe_mode: bool = False) -> None:
     config = load_app_config(config_path)
-    processor = MailProcessor(config)
+    processor = MailProcessor(config, safe_mode=safe_mode)
     processor.run()
 
 
@@ -56,6 +60,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     configure_logging(args.log_level)
     if args.command == "run":
         run_processor(args.config)
+    elif args.command == "safe":
+        run_processor(args.config, safe_mode=True)
     elif args.command == "test":
         run_test_mode(args.config)
     else:  # pragma: no cover - argparse enforces choices
