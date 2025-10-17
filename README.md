@@ -46,6 +46,16 @@ Tests live in `tests/` and cover attachment handling and the mailbox queue behav
    python -m mailassist.cli run
    ```
 
+4. Validate your mailbox configuration without invoking the LLM by using test mode:
+
+   ```bash
+   python -m mailassist.cli test
+   ```
+
+   Test mode downloads the most recent message from a trusted sender (if available) and sends it back to the originating
+   address with a `[MailAssist Test]` subject prefix. This end-to-end loop verifies IMAP and SMTP credentials before enabling the
+   full LLM-backed workflow.
+
 ## Configuration
 
 The job loads configuration from a YAML or JSON file referenced by the `MAILASSIST_CONFIG` environment variable. Configuration values are parsed into lightweight dataclasses. Below is a minimal example:
