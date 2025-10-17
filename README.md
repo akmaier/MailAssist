@@ -46,7 +46,13 @@ Tests live in `tests/` and cover attachment handling and the mailbox queue behav
    python -m mailassist.cli run
    ```
 
-4. Validate your mailbox configuration without invoking the LLM by using test mode:
+4. Run the processor in **safe mode** to override the LLM-selected recipient and always reply to the trusted sender (useful for production dry-runs or heightened safety requirements):
+
+   ```bash
+   python -m mailassist.cli safe
+   ```
+
+5. Validate your mailbox configuration without invoking the LLM by using test mode:
 
    ```bash
    python -m mailassist.cli test
@@ -55,6 +61,9 @@ Tests live in `tests/` and cover attachment handling and the mailbox queue behav
    Test mode downloads the most recent message from a trusted sender (if available) and sends it back to the originating
    address with a `[MailAssist Test]` subject prefix. This end-to-end loop verifies IMAP and SMTP credentials before enabling the
    full LLM-backed workflow.
+
+Safe mode still executes the full LLM pipeline but forces outgoing replies to use the original trusted sender address (or the
+first trusted sender configured) instead of any recipient suggested by the language model.
 
 ## Configuration
 

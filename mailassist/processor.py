@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 from email.message import EmailMessage
+from email.utils import parseaddr
 from typing import Optional
 
 from .attachment_processor import AttachmentProcessor, ProcessedAttachment
 from .config import AppConfig
 from .email_sender import EmailSender
 from .imap_client import ImapClient, MessageEnvelope
-from .llm_client import LLMClient
+from .llm_client import LLMClient, LLMReply
 from .state import ProcessorState
 
 LOGGER = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class MailProcessor:
         email_sender: Optional[EmailSender] = None,
         state: Optional[ProcessorState] = None,
         logger: Optional[logging.Logger] = None,
+        safe_mode: bool = False,
     ) -> None:
         self.config = config
         self.logger = logger or LOGGER
@@ -54,6 +56,7 @@ class MailProcessor:
             state_settings.deleted_record_path,
             state_settings.failed_record_path,
         )
+        self.safe_mode = safe_mode
 
     def run(self) -> None:
         self.logger.info("Fetching messages from IMAP mailbox")
@@ -71,7 +74,10 @@ class MailProcessor:
             body_text = self._extract_plain_text(message)
             attachments = self.attachment_processor.process(message)
             reply = self.llm_client.generate_reply(body_text, attachments)
-            self.email_sender.send_mail(reply.to, reply.subject, reply.body_text)
+            recipient = self._determine_recipient(message, reply)
+            if self.safe_mode:
+                self.logger.info("Safe mode active: overriding LLM recipient with %s", recipient)
+            self.email_sender.send_mail(recipient, reply.subject, reply.body_text)
             self.logger.info("Reply sent for UID %s", uid)
             self._handle_post_send(uid, attachments)
         except Exception as exc:
@@ -92,6 +98,14 @@ class MailProcessor:
 
     def _extract_plain_text(self, message: EmailMessage) -> str:
         return extract_plain_text(message)
+
+    def _determine_recipient(self, message: EmailMessage, reply: LLMReply) -> str:
+        if not self.safe_mode:
+            return reply.to
+        sender_address = parseaddr(message.get("From", ""))[1]
+        if sender_address:
+            return sender_address
+        return self.config.trusted_senders[0]
 
 
 __all__ = ["MailProcessor", "extract_plain_text"]
