@@ -52,6 +52,7 @@ class LLMClient:
                 },
             ],
             "max_output_tokens": self.settings.max_tokens,
+            "response_format": {"type": "json_object"},
         }
 
         if self._supports_sampling_controls(self.settings.model):
@@ -64,7 +65,10 @@ class LLMClient:
 
         self.logger.debug("LLM request body: %s", request_kwargs["input"])
         response = self.client.responses.create(**request_kwargs)
-        payload = response.output_text
+        payload = self._extract_text_payload(response)
+        if not payload:
+            self.logger.error("LLM response did not contain any text payload")
+            raise RuntimeError("LLM response did not contain any text payload")
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:  # pragma: no cover - depends on API behaviour
@@ -82,6 +86,36 @@ class LLMClient:
                 )
                 raise RuntimeError(f"LLM response missing '{key}' field: {data}")
         return LLMReply(to=data["to"], subject=data["subject"], body_text=data["body_text"])
+
+    def _extract_text_payload(self, response: object) -> str:
+        """Return the concatenated text payload from a Responses API result."""
+
+        text = getattr(response, "output_text", None)
+        if text:
+            stripped = text.strip()
+            if stripped:
+                return stripped
+
+        output = getattr(response, "output", None)
+        if not output:
+            return ""
+
+        chunks: list[str] = []
+        for item in output:
+            if isinstance(item, dict):
+                contents = item.get("content")
+            else:
+                contents = getattr(item, "content", None)
+            if not contents:
+                continue
+            for content in contents:
+                if isinstance(content, dict):
+                    text_value = content.get("text")
+                else:
+                    text_value = getattr(content, "text", None)
+                if text_value:
+                    chunks.append(text_value)
+        return "".join(chunks).strip()
 
     def _build_prompt(self, body_text: str, attachments: Iterable[ProcessedAttachment]) -> str:
         attachment_sections = []
