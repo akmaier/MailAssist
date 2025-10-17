@@ -64,16 +64,7 @@ class LLMClient:
             )
 
         self.logger.debug("LLM request body: %s", request_kwargs["input"])
-        try:
-            response = self.client.responses.create(**request_kwargs)
-        except TypeError as exc:
-            if "response_format" not in str(exc):
-                raise
-            self.logger.debug(
-                "Responses.create() rejected response_format parameter; retrying without it"
-            )
-            request_kwargs.pop("response_format", None)
-            response = self.client.responses.create(**request_kwargs)
+        response = self.client.responses.create(**request_kwargs)
         payload = self._extract_text_payload(response)
         if not payload:
             self.logger.error("LLM response did not contain any text payload")

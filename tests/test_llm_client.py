@@ -31,32 +31,18 @@ class _StubOutput:
 @dataclass
 class _ClientRecorder:
     response: _StubResponse
-    fail_on_response_format: bool = False
 
     def __post_init__(self) -> None:  # pragma: no cover - dataclass hook
         self.captured_kwargs: Dict[str, Any] = {}
-        self.calls: List[Dict[str, Any]] = []
         self.responses = self
 
     def create(self, **kwargs: Any) -> _StubResponse:
         self.captured_kwargs = kwargs
-        self.calls.append(dict(kwargs))
-        if self.fail_on_response_format and "response_format" in kwargs:
-            raise TypeError(
-                "Responses.create() got an unexpected keyword argument 'response_format'"
-            )
         return self.response
 
 
-def _install_stub(
-    monkeypatch: pytest.MonkeyPatch,
-    response: _StubResponse,
-    *,
-    fail_on_response_format: bool = False,
-) -> _ClientRecorder:
-    recorder = _ClientRecorder(
-        response=response, fail_on_response_format=fail_on_response_format
-    )
+def _install_stub(monkeypatch: pytest.MonkeyPatch, response: _StubResponse) -> _ClientRecorder:
+    recorder = _ClientRecorder(response=response)
 
     def _factory(api_key: str) -> _ClientRecorder:  # pragma: no cover - runtime hook
         assert api_key == "dummy-key"
@@ -92,22 +78,3 @@ def test_generate_reply_falls_back_to_output_chunks(monkeypatch: pytest.MonkeyPa
     assert reply.to == "x@y.z"
     assert reply.subject == "Subject"
     assert reply.body_text == "Response"
-
-
-def test_generate_reply_retries_without_response_format(monkeypatch: pytest.MonkeyPatch) -> None:
-    response = _StubResponse(
-        output_text="{\"to\":\"retry@ok\",\"subject\":\"Done\",\"body_text\":\"All good\"}"
-    )
-    recorder = _install_stub(
-        monkeypatch, response, fail_on_response_format=True
-    )
-    client = LLMClient(LLMSettings(api_key="dummy-key", model="gpt-5"))
-
-    reply = client.generate_reply("hello", [])
-
-    assert len(recorder.calls) == 2
-    assert "response_format" in recorder.calls[0]
-    assert "response_format" not in recorder.calls[1]
-    assert reply.to == "retry@ok"
-    assert reply.subject == "Done"
-    assert reply.body_text == "All good"
