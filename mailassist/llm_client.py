@@ -38,9 +38,9 @@ class LLMClient:
     def generate_reply(self, body_text: str, attachments: Iterable[ProcessedAttachment]) -> LLMReply:
         prompt = self._build_prompt(body_text, attachments)
         self.logger.debug("Submitting prompt to GPT-5 (model=%s)", self.settings.model)
-        response = self.client.responses.create(
-            model=self.settings.model,
-            input=[
+        request_kwargs = {
+            "model": self.settings.model,
+            "input": [
                 {
                     "role": "system",
                     "content": "You are a helpful assistant generating structured email replies. Respond ONLY with JSON matching the schema {to, subject, body_text}.",
@@ -50,9 +50,18 @@ class LLMClient:
                     "content": prompt,
                 },
             ],
-            temperature=self.settings.temperature,
-            max_output_tokens=self.settings.max_tokens,
-        )
+            "max_output_tokens": self.settings.max_tokens,
+        }
+
+        if self._supports_sampling_controls(self.settings.model):
+            if self.settings.temperature is not None:
+                request_kwargs["temperature"] = self.settings.temperature
+        else:
+            self.logger.debug(
+                "Omitting sampling controls for model '%s'", self.settings.model
+            )
+
+        response = self.client.responses.create(**request_kwargs)
         payload = response.output_text
         try:
             data = json.loads(payload)
@@ -84,6 +93,14 @@ class LLMClient:
             f"{attachment_block}\n\n"
             "Respond with JSON containing keys to, subject, body_text."
         )
+
+    @staticmethod
+    def _supports_sampling_controls(model_name: str) -> bool:
+        """Return True if the model accepts sampling parameters like temperature."""
+
+        lowered = model_name.lower()
+        disallowed_prefixes = ("gpt-5", "gpt-o", "o1", "o3", "realtime")
+        return not any(lowered.startswith(prefix) for prefix in disallowed_prefixes)
 
 
 __all__ = ["LLMClient", "LLMReply"]
