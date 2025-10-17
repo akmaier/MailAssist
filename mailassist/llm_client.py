@@ -52,7 +52,6 @@ class LLMClient:
                 },
             ],
             "max_output_tokens": self.settings.max_tokens,
-            "response_format": {"type": "json_object"},
         }
 
         if self._supports_sampling_controls(self.settings.model):
@@ -65,6 +64,8 @@ class LLMClient:
 
         self.logger.debug("LLM request body: %s", request_kwargs["input"])
         response = self.client.responses.create(**request_kwargs)
+        raw_response = self._serialize_response(response)
+        self.logger.debug("Raw LLM response: %s", raw_response)
         payload = self._extract_text_payload(response)
         if not payload:
             self.logger.error("LLM response did not contain any text payload")
@@ -116,6 +117,30 @@ class LLMClient:
                 if text_value:
                     chunks.append(text_value)
         return "".join(chunks).strip()
+
+    @staticmethod
+    def _serialize_response(response: object) -> str:
+        """Return a JSON-serialisable representation of the raw response."""
+
+        for attr in ("model_dump", "dict", "to_dict"):
+            method = getattr(response, attr, None)
+            if callable(method):
+                try:
+                    data = method()
+                except TypeError:
+                    data = method(exclude_none=True)  # type: ignore[arg-type]
+                try:
+                    return json.dumps(data, default=str)
+                except TypeError:
+                    return repr(data)
+
+        if hasattr(response, "model_dump_json") and callable(getattr(response, "model_dump_json")):
+            try:
+                return response.model_dump_json()  # type: ignore[no-any-return]
+            except TypeError:
+                pass
+
+        return repr(response)
 
     def _build_prompt(self, body_text: str, attachments: Iterable[ProcessedAttachment]) -> str:
         attachment_sections = []
